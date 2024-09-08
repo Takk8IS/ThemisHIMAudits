@@ -1,0 +1,109 @@
+name: Build and Release ThemisAudits
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
+
+jobs:
+    build:
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [windows-latest, macos-latest]
+                include:
+                    - os: windows-latest
+                      output_name: ThemisAudits.exe
+                      output_path: dist/ThemisAudits
+                      spec_file: ThemisAudits_win.spec
+                    - os: macos-latest
+                      output_name: ThemisAudits.app
+                      output_path: dist/ThemisAudits.app
+                      spec_file: ThemisAudits_mac.spec
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.9"
+
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -r requirements.txt
+                  pip install pyinstaller
+
+            - name: Create version info file (Windows)
+              if: matrix.os == 'windows-latest'
+              run: |
+                  echo "# UTF-8
+                  VSVersionInfo(
+                    ffi=FixedFileInfo(
+                      filevers=(1, 2, 7, 0),
+                      prodvers=(1, 2, 7, 0),
+                      mask=0x3f,
+                      flags=0x0,
+                      OS=0x40004,
+                      fileType=0x1,
+                      subtype=0x0,
+                      date=(0, 0)
+                    ),
+                    kids=[
+                      StringFileInfo(
+                        [
+                        StringTable(
+                          u'040904B0',
+                          [StringStruct(u'CompanyName', u'Takk™ Innovate Studio'),
+                          StringStruct(u'FileDescription', u'ThemisHIM™ Audits'),
+                          StringStruct(u'FileVersion', u'1.2.7'),
+                          StringStruct(u'InternalName', u'ThemisAudits'),
+                          StringStruct(u'LegalCopyright', u'© Takk™ Innovate Studio. All rights reserved.'),
+                          StringStruct(u'OriginalFilename', u'ThemisAudits.exe'),
+                          StringStruct(u'ProductName', u'ThemisHIM™ Audits'),
+                          StringStruct(u'ProductVersion', u'1.2.7')])
+                        ]),
+                      VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+                    ]
+                  )" > file_version_info.txt
+
+            - name: Build with PyInstaller
+              run: |
+                  pyinstaller ${{ matrix.spec_file }}
+
+            - name: List directory contents
+              run: |
+                  ls -R dist
+
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ matrix.output_name }}
+                  path: ${{ matrix.output_path }}
+
+    release:
+        needs: build
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Download artifacts
+              uses: actions/download-artifact@v4
+
+            - name: Create Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: v${{ github.run_number }}
+                  name: Release ${{ github.run_number }}
+                  files: |
+                      ThemisAudits.exe/*
+                      ThemisAudits.app/*
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
