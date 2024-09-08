@@ -1,0 +1,9 @@
+pillow
+requests
+pandas
+pdfplumber
+python-docx
+markdown
+pytesseract
+pdf2image
+ttkbootstrap
